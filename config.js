@@ -1,8 +1,8 @@
 // FBC PayPoint — Supabase connection settings.
-// Replace both values with the ones from your Supabase project:
-// Project Settings → API → "Project URL" and the "anon public" key.
-// The anon key is designed to be public; never put the service_role key here.
+// supabaseUrl: Supabase → Project Settings → Data API → Project URL.
+// supabaseAnonKey: Supabase → Project Settings → API Keys → Publishable key (starts with sb_publishable_).
+// The publishable key is meant to be public. Never put a secret key (sb_secret_...) here.
 window.PAYPOINT_CONFIG = {
-  supabaseUrl: 'https://YOUR-PROJECT-ID.supabase.co',
-  supabaseAnonKey: 'YOUR-ANON-PUBLIC-KEY'
+  supabaseUrl: 'https://ezmmxxvlibokvklpilet.supabase.co',
+  supabaseAnonKey: 'sb_publishable_2HuzFWPNDI0cq-NCdoSA5Q_d4EHC73G'
 };
