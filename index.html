@@ -6,7 +6,7 @@
 <title>PayPoint Live</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <style>
 /* Layout: one slim top bar (brand · live status · user switch); the kiosk is a single framed screen with one task per view; cashier and VP use a two-pane desk */
@@ -272,7 +272,7 @@ function applyRow(row, del){
 }
 async function startStore(){
   const cfg = window.PAYPOINT_CONFIG || {};
-  if (!cfg.supabaseUrl || !cfg.supabaseAnonKey || !window.supabase || cfg.supabaseUrl.includes('YOUR-')){ startLocal(); return; }
+  if (!cfg.supabaseUrl || !cfg.supabaseAnonKey || !window.supabase || cfg.supabaseUrl.includes('YOUR-') || /YOUR-|PASTE-/.test(cfg.supabaseAnonKey)){ startLocal(); return; }
   const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
   store.sb = sb;
   const load = async () => {
