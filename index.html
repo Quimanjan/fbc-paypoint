@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PayPoint Live</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<style>
+/* Layout: one slim top bar (brand · live status · user switch); the kiosk is a single framed screen with one task per view; cashier and VP use a two-pane desk */
+:root{
+  --bg:#F5F2F1; --surface:#FFFFFF; --sunk:#EFEAE9; --ink:#22171A; --muted:#6B5F62; --line:#E2DADA;
+  --accent:#7A1F2B; --accent-ink:#FFFFFF; --accent-soft:#F6E7E9; --gold:#C9A227;
+  --pn:#9A5A00; --pn-soft:#FBF0DD;
+  --ok:#1E7046; --ok-soft:#E3F2E8; --bad:#B42318; --bad-soft:#FCE8E5;
+  --paper:#FFFDF6; --paper-ink:#24221D;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Public Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#171113; --surface:#21181B; --sunk:#1B1416; --ink:#F1E9EA; --muted:#AE9DA1; --line:#3A2C30;
+  --accent:#E3909B; --accent-ink:#2A0A10; --accent-soft:#3A1C22; --gold:#E2C35A;
+  --pn:#F0B45A; --pn-soft:#36290F; --ok:#6CC995; --ok-soft:#163024; --bad:#F08A7E; --bad-soft:#3A1C19; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#171113; --surface:#21181B; --sunk:#1B1416; --ink:#F1E9EA; --muted:#AE9DA1; --line:#3A2C30;
+  --accent:#E3909B; --accent-ink:#2A0A10; --accent-soft:#3A1C22; --gold:#E2C35A;
+  --pn:#F0B45A; --pn-soft:#36290F; --ok:#6CC995; --ok-soft:#163024; --bad:#F08A7E; --bad-soft:#3A1C19; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:16px;padding-block:0 56px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
+h2{font-size:1.25rem} h3{font-size:1rem}
+p{margin:0}
+.num,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .small{font-size:.85rem}
+button,input,select,textarea{font:inherit;color:inherit}
+input,select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;width:100%;min-width:0}
+textarea{resize:vertical;min-height:72px}
+label{display:grid;gap:5px;font-size:.84rem;font-weight:600;color:var(--muted)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:10px 16px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;justify-content:center}
+.btn:hover:not(:disabled){border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.ok{background:var(--ok);color:#fff;border-color:var(--ok)}
+.btn.danger{color:var(--bad);border-color:var(--bad);background:transparent}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--accent);padding-inline:6px}
+.btn.lg{padding:14px 22px;font-size:1.05rem;border-radius:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{padding:5px 10px;font-size:.84rem}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.between{justify-content:space-between} .end{justify-content:flex-end} .center{justify-content:center}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:20px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;min-width:0}
+.stack{display:grid;gap:14px;min-width:0}
+.chip{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.c-Pending{background:var(--sunk);color:var(--muted)} .c-Approved,.c-Partially{background:var(--pn-soft);color:var(--pn)}
+.c-Settled,.c-good{background:var(--ok-soft);color:var(--ok)} .c-Overdue,.c-Rejected,.c-badc{background:var(--bad-soft);color:var(--bad)}
+.c-Cash{background:var(--ok-soft);color:var(--ok)} .c-Cashless{background:var(--accent-soft);color:var(--accent)}
+.tbl{overflow-x:auto} table{border-collapse:collapse;width:100%;font-size:.9rem}
+th{text-align:left;font-size:.7rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+.eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* top bar */
+.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;padding-block:18px 14px}
+.brand{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.brand h1{font-size:1.5rem;letter-spacing:-.02em}
+.brand h1 b{color:var(--accent)}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;color:var(--muted)}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+.live.off i{background:var(--pn)}
+@media (prefers-reduced-motion:no-preference){.live:not(.off) i{animation:pulse 2s infinite}@keyframes pulse{50%{opacity:.35}}}
+.roles{display:flex;flex-wrap:wrap;background:var(--sunk);border-radius:11px;padding:4px;gap:2px}
+.roles button{border:0;background:transparent;padding:8px 16px;border-radius:8px;font-weight:600;cursor:pointer;color:var(--muted)}
+.roles button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.badge{background:var(--pn);color:#1D1300;border-radius:99px;font-size:.7rem;padding:1px 7px;margin-left:6px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:20px;overflow-x:auto}
+.tabs button{border:0;background:transparent;padding:10px 14px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+.tabs button[aria-pressed="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+
+/* kiosk */
+.kiosk{max-width:820px;margin:0 auto;background:var(--surface);border:10px solid #2B1418;border-radius:24px;min-height:560px;display:flex;flex-direction:column;overflow:hidden}
+.k-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 24px;background:#7A1F2B;color:#fff;border-bottom:4px solid var(--gold);flex-wrap:wrap}
+.k-head .muted{color:rgba(255,255,255,.8)}
+.k-head .btn{background:transparent;color:#fff;border-color:rgba(255,255,255,.5)}
+.logo{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#7A1F2B;color:#fff;border:2px solid var(--gold);font-family:var(--f-display);font-weight:800;font-size:.8rem;letter-spacing:.02em;flex:none;overflow:hidden}
+.logo img{width:100%;height:100%;object-fit:cover}
+.k-head .logo{background:#fff;color:#7A1F2B}
+.k-brand{display:flex;align-items:center;gap:10px}
+.k-head b{font-family:var(--f-display);font-size:1rem}
+.k-body{padding:32px 28px;flex:1;display:grid;gap:24px;align-content:start}
+.k-narrow{max-width:420px;width:100%;margin:0 auto;display:grid;gap:18px}
+.k-title{font-size:clamp(1.5rem,4vw,2rem)}
+.k-big{font-size:clamp(2.2rem,7vw,3.4rem);font-family:var(--f-mono);font-weight:600;letter-spacing:-.02em;line-height:1}
+.big-input{font-size:1.5rem;font-family:var(--f-mono);padding:14px 16px;text-align:center;letter-spacing:.04em}
+.samples{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.samples button{border:1px solid var(--line);background:var(--sunk);border-radius:99px;padding:4px 10px;font-size:.8rem;cursor:pointer;font-family:var(--f-mono)}
+.samples button:hover{border-color:var(--accent)}
+.tapzone{display:grid;gap:10px;justify-items:center;padding:22px 0 6px}
+.card-icon{width:150px;height:96px;border-radius:12px;border:2px solid var(--accent);background:var(--accent-soft);position:relative}
+.card-icon span{position:absolute;left:16px;top:20px;width:30px;height:22px;border-radius:4px;background:var(--accent);opacity:.7}
+.card-icon::after{content:"";position:absolute;inset:-12px;border-radius:20px;border:2px solid var(--accent);opacity:0}
+@media (prefers-reduced-motion:no-preference){.card-icon::after{animation:ring 2.2s ease-out infinite}@keyframes ring{0%{opacity:.5;transform:scale(.92)}100%{opacity:0;transform:scale(1.12)}}}
+details.alt{border-top:1px solid var(--line);padding-top:14px}
+details.alt summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:.9rem}
+details.alt[open] summary{margin-bottom:10px}
+.duecard{background:var(--sunk);border-radius:16px;padding:22px;display:grid;gap:16px}
+.lines{display:grid;gap:8px;font-size:.92rem}
+.line{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.line .num{white-space:nowrap}
+.line.pn{color:var(--pn);font-weight:600}
+.line.total{border-top:1px solid var(--line);padding-top:10px;font-weight:700}
+.k-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px}
+.k-links{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.methods{display:grid;gap:10px}
+.method{border:2px solid var(--line);background:var(--surface);border-radius:14px;padding:16px 18px;text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.method:hover{border-color:var(--accent)}
+.method b{font-family:var(--f-display);font-size:1.1rem;display:block}
+.method span{color:var(--muted);font-size:.85rem}
+.method em{font-style:normal;color:var(--accent);font-weight:700}
+.step{display:grid;gap:12px;align-content:start}
+.step-n{font-size:.75rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.pinpad{display:grid;grid-template-columns:repeat(3,minmax(0,84px));gap:10px;justify-content:center}
+.pinpad button{height:62px;font-size:1.45rem;font-family:var(--f-mono);border-radius:12px;border:1px solid var(--line);background:var(--sunk);cursor:pointer}
+.pinpad button:hover{border-color:var(--accent)}
+.dots{display:flex;gap:14px;justify-content:center}
+.dots i{width:16px;height:16px;border-radius:50%;border:2px solid var(--ink)}
+.dots i.on{background:var(--ink)}
+.bills{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.bills button{border:1px solid var(--ok);background:var(--ok-soft);color:var(--ok);border-radius:10px;padding:12px 6px;font-family:var(--f-mono);font-weight:600;cursor:pointer}
+.note{border-radius:12px;padding:12px 16px;font-size:.92rem;display:flex;gap:10px;align-items:baseline}
+.note.pn{background:var(--pn-soft)} .note.info{background:var(--accent-soft)} .note.bad{background:var(--bad-soft);color:var(--bad)} .note.ok{background:var(--ok-soft);color:var(--ok)}
+.demo{border:1px dashed var(--line);border-radius:12px;padding:14px;display:grid;gap:10px}
+.qrbox{background:#fff;padding:12px;border-radius:12px;width:max-content;margin:0 auto}
+.qrbox img,.qrbox canvas{display:block}
+.receipt{background:var(--paper);color:var(--paper-ink);font-family:var(--f-mono);font-size:.82rem;width:min(100%,320px);margin:0 auto;padding:18px 16px 20px;box-shadow:0 2px 10px rgba(0,0,0,.15);line-height:1.45}
+.receipt .c{text-align:center} .receipt hr{border:0;border-top:1px dashed #8a857a;margin:8px 0}
+.receipt .l{display:flex;justify-content:space-between;gap:8px}
+.receipt .big{font-size:1.05rem;font-weight:600}
+.receipt.permit{border:3px double var(--paper-ink)}
+
+/* desks */
+.strip{display:flex;flex-wrap:wrap;gap:8px 28px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 20px;margin-bottom:20px}
+.strip div{display:grid}
+.strip small{font-size:.7rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.strip b{font-family:var(--f-mono);font-size:1.15rem;font-weight:600}
+.strip .warn b{color:var(--pn)}
+.results{display:grid;gap:6px;max-height:440px;overflow:auto}
+.result{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid transparent;border-radius:10px;padding:10px 12px;background:transparent;cursor:pointer;text-align:left;width:100%}
+.result:hover{background:var(--sunk)}
+.result.sel{border-color:var(--accent);background:var(--accent-soft)}
+.result small{display:block;color:var(--muted);font-family:var(--f-mono);font-size:.78rem}
+.paynow{background:var(--accent);color:var(--accent-ink);border-radius:14px;padding:18px 20px;display:grid;gap:6px}
+.paynow .num{font-size:2.2rem;font-weight:600;line-height:1}
+.paynow small{opacity:.85}
+.form2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px}
+.filters{display:grid;grid-template-columns:2fr repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:640px){.filters{grid-template-columns:1fr 1fr}.filters label:first-child{grid-column:1/-1}}
+.req{display:grid;gap:18px}
+.req-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}
+.req-amt{font-family:var(--f-mono);font-size:2rem;font-weight:600;line-height:1}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.facts div{background:var(--surface);padding:12px 14px;display:grid;gap:2px}
+.facts small{font-size:.7rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.facts b{font-family:var(--f-mono);font-weight:600}
+.checks{display:grid;gap:6px;font-size:.9rem;padding:0;margin:0}
+.checks li{list-style:none;display:flex;gap:8px;align-items:baseline}
+.ck-ok{color:var(--ok);font-weight:700} .ck-bad{color:var(--bad);font-weight:700}
+.queue-pill{display:inline-flex;align-items:center;gap:8px;background:var(--sunk);border-radius:99px;padding:6px 12px;font-size:.85rem;font-weight:600}
+.queue-pill b{font-family:var(--f-mono)}
+.flash td{animation:flash 1.8s ease-out}
+@keyframes flash{from{background:var(--pn-soft)}}
+.empty{padding:48px 16px;text-align:center;display:grid;gap:10px;justify-items:center}
+.scrim{position:fixed;inset:0;background:rgba(10,14,18,.55);display:grid;place-items:center;padding:16px;z-index:20}
+.modal{background:var(--surface);border-radius:16px;max-width:520px;width:100%;max-height:90vh;overflow:auto;padding:22px;display:grid;gap:16px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;z-index:30;max-width:calc(100% - 32px)}
+@media (max-width:560px){.k-body{padding:22px 16px}.kiosk{border-width:6px}}
+</style>
+
+<style>[hidden]{display:none!important} body{margin:0} :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span class="logo" aria-label="School logo">FBC</span><h1>Pay<b>Point</b></h1><span class="live off" id="live"><i></i>Connecting…</span></div>
+    <nav class="roles" id="roles" aria-label="Switch user"></nav>
+  </header>
+  <main id="app"></main>
+</div>
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+
+<script>
+/* =====================================================================
+   PayPoint — shared live store.
+   Live mode: every screen reads the artifact database through
+   onSnapshot, so a payment at the kiosk shows up on the cashier and
+   VP dashboards on any device within seconds.
+   Fallback: if the database is unavailable, the page runs on sample
+   data kept in this browser and syncs across tabs only.
+   ===================================================================== */
+const PERIODS = ['Downpayment','Prelim','Midterm','Semi-final','Finals'];
+const COLLS = ['config','students','payments','notes'];
+const USERS = { student:'Kiosk 01', cashier:'Cashier', vp:'VP for Finance' };
+const LOCAL_KEY = 'paypoint-web-local-v1';
+
+const r2 = n => Math.round((+n + Number.EPSILON) * 100) / 100;
+const peso = n => '₱' + r2(n).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = (n,w) => String(n).padStart(w,'0');
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmtDate = d => { if (!d) return '—'; const [y,m,dd] = d.slice(0,10).split('-'); return `${MONTHS[+m-1]} ${+dd}, ${y}`; };
+const fmtDT = d => d ? fmtDate(d) + (d.length > 10 ? ' ' + d.slice(11,16) : '') : '—';
+const addDays = (d,n) => { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0,10); };
+const clock = () => { const t = new Date(); return pad(t.getHours(),2) + ':' + pad(t.getMinutes(),2) + ':' + pad(t.getSeconds(),2); };
+const rand36 = n => Array.from({length:n}, () => '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random()*34)]).join('');
+
+/* ---------- sample data (used to fill an empty store, and for the offline fallback) ---------- */
+function sampleData(){
+  const D = { config:{}, students:{}, payments:{}, notes:{} };
+  D.config.main = { school:'Fellowship Baptist College', campus:'Kabankalan City', term:'1st Semester, A.Y. 2026–2027', period:'Midterm', today:'2026-10-13',
+    maxNotesPerSem:2, maxDeferPct:100,
+    schedule:{ 'Downpayment':20, 'Prelim':40, 'Midterm':60, 'Semi-final':80, 'Finals':100 },
+    fees:{ perUnit:850, misc:4500, lab:{ BSIT:3000, BSCS:3000, BSBA:0, BSEd:500, BSN:6000 } } };
+  [['2023-00142','Juan Dela Cruz','BSIT',3,21,0],['2023-00218','Maria Santos','BSBA',2,24,0],['2024-00305','Paolo Reyes','BSCS',1,23,50],
+   ['2022-00087','Andrea Villanueva','BSN',4,26,0],['2025-00411','Mark Gonzaga','BSEd',1,21,0],['2024-00199','Kristine Lopez','BSIT',2,21,25]]
+   .forEach(([no,name,course,year,units,discountPct]) => D.students[no] = { no, name, course, year, units, discountPct, pin:'1234' });
+  let or = 1001;
+  const pay = (no, amount, method, channel, at, alloc=[], inst=amount) => { const id = 'P' + or;
+    D.payments[id] = { id, or:'OR-' + pad(or++,6), studentNo:no, amount, method, type: method === 'Cash' ? 'Cash' : 'Cashless', channel, at,
+      ref: method === 'Cash' ? '' : 'REF-' + (700000 + or * 37), alloc, inst, advance:0, by: channel === 'Kiosk' ? USERS.student : USERS.cashier }; };
+  const note = o => { D.notes[o.id] = Object.assign({ remarks:'', amountApproved:0, decidedAt:'', decidedBy:'' }, o); };
+  pay('2023-00142', 5070, 'Cash', 'Cashier', '2026-08-10T09:14:00');
+  note({ id:'PN-0001', studentNo:'2023-00142', period:'Prelim', amountRequested:3000, amountApproved:3000, reason:'Financial difficulty', details:'Father between jobs this month.', promisedDate:'2026-10-10', guardian:'Roberto Dela Cruz', contact:'0917 555 0142', status:'Approved', requestedAt:'2026-09-08T10:02:00', decidedAt:'2026-09-10T15:05:00', decidedBy:USERS.vp });
+  pay('2023-00142', 2070, 'GCash', 'Kiosk', '2026-09-14T09:13:00');
+  pay('2025-00411', 4570, 'Cash', 'Cashier', '2026-08-10T10:40:00');
+  note({ id:'PN-0002', studentNo:'2025-00411', period:'Prelim', amountRequested:2000, amountApproved:2000, reason:'Delayed remittance', details:'Allowance from sister abroad arrives mid-October.', promisedDate:'2026-10-15', guardian:'Liza Gonzaga', contact:'0918 555 0411', status:'Approved', requestedAt:'2026-09-09T08:20:00', decidedAt:'2026-09-10T15:20:00', decidedBy:USERS.vp });
+  pay('2025-00411', 2570, 'Maya', 'Kiosk', '2026-09-13T11:03:00');
+  pay('2023-00218', 4980, 'Cash', 'Cashier', '2026-08-12T08:55:00');
+  pay('2023-00218', 4980, 'Maya', 'Kiosk', '2026-09-15T14:21:00');
+  note({ id:'PN-0003', studentNo:'2023-00218', period:'Midterm', amountRequested:2500, reason:'Financial difficulty', details:'Family store income dropped after the typhoon.', promisedDate:'2026-11-14', guardian:'Elena Santos', contact:'0919 555 0218', status:'Pending', requestedAt:'2026-10-12T09:40:00' });
+  pay('2024-00305', 3455, 'Cash', 'Cashier', '2026-08-11T09:30:00');
+  pay('2024-00305', 3455, 'GCash', 'Kiosk', '2026-09-12T13:10:00');
+  pay('2022-00087', 6520, 'Bank transfer', 'Cashier', '2026-08-09T10:00:00');
+  pay('2022-00087', 6520, 'Cash', 'Cashier', '2026-09-11T11:45:00');
+  note({ id:'PN-0004', studentNo:'2022-00087', period:'Midterm', amountRequested:4000, reason:'Delayed remittance', details:"Mother's OFW salary is delayed this month.", promisedDate:'2026-11-28', guardian:'Carmela Villanueva', contact:'0921 555 0087', status:'Pending', requestedAt:'2026-10-12T16:30:00' });
+  pay('2024-00199', 4177.5, 'Cash', 'Cashier', '2026-08-14T15:02:00');
+  pay('2025-00411', 6570, 'GCash', 'Kiosk', '2026-10-13T08:42:00', [{ noteId:'PN-0002', amount:2000 }], 4570);
+  return D;
+}
+
+/* ---------- store adapter ---------- */
+const store = { mode:'connecting', db:null, data:{ config:{}, students:{}, payments:{}, notes:{} }, loaded:{}, error:'', bc:null, writable:true };
+function localLoad(){ try { const raw = localStorage.getItem(LOCAL_KEY); if (raw) return JSON.parse(raw); } catch(e){} return sampleData(); }
+function localSave(){ try { localStorage.setItem(LOCAL_KEY, JSON.stringify(store.data)); } catch(e){} try { store.bc && store.bc.postMessage('changed'); } catch(e){} }
+function startLocal(){
+  store.mode = 'local'; store.data = localLoad(); COLLS.forEach(c => store.loaded[c] = true);
+  try { store.bc = new BroadcastChannel('paypoint-live'); store.bc.onmessage = () => { store.data = localLoad(); render(true); }; } catch(e){}
+  render(true);
+}
+/* Supabase adapter: one table "docs" (coll, id, data jsonb) with realtime. */
+function applyRow(row, del){
+  if (!row || !store.data[row.coll]) return;
+  const before = Object.keys(store.data.payments).length;
+  if (del) delete store.data[row.coll][row.id]; else store.data[row.coll][row.id] = row.data;
+  if (row.coll === 'payments' && !del && Object.keys(store.data.payments).length > before) ui.flash = Date.now();
+}
+async function startStore(){
+  const cfg = window.PAYPOINT_CONFIG || {};
+  if (!cfg.supabaseUrl || !cfg.supabaseAnonKey || !window.supabase || cfg.supabaseUrl.includes('YOUR-')){ startLocal(); return; }
+  const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+  store.sb = sb;
+  const load = async () => {
+    const { data, error } = await sb.from('docs').select('coll,id,data');
+    if (error){ store.error = error.message; render(true); return false; }
+    COLLS.forEach(c => store.data[c] = {}); data.forEach(r => applyRow(r)); COLLS.forEach(c => store.loaded[c] = true);
+    return true;
+  };
+  sb.channel('docs-live').on('postgres_changes', { event:'*', schema:'public', table:'docs' }, payload => {
+    if (payload.eventType === 'DELETE') applyRow(payload.old, true); else applyRow(payload.new);
+    render(true);
+  }).subscribe(status => { if (status === 'SUBSCRIBED') load().then(() => render(true)); if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT'){ store.error = 'Realtime connection lost. Reconnecting…'; render(true); } });
+  if (await load()){ store.mode = 'live'; store.error = ''; }
+  render(true);
+}
+async function put(coll, id, data){
+  const body = JSON.parse(JSON.stringify(data));
+  if (store.mode === 'live'){
+    const { error } = await store.sb.from('docs').upsert({ coll, id, data: body });
+    if (error){ toast('Could not save. Check your connection and try again.'); throw error; }
+    store.data[coll][id] = body;
+  } else { store.data[coll][id] = body; localSave(); }
+}
+async function remove(coll, id){ if (store.mode === 'live'){ const { error } = await store.sb.from('docs').delete().match({ coll, id }); if (error) throw error; delete store.data[coll][id]; } else { delete store.data[coll][id]; localSave(); } }
+
+/* ---------- accessors ---------- */
+const CFG = () => store.data.config.main;
+const today = () => (CFG() && CFG().today) || new Date().toISOString().slice(0,10);
+const stamp = () => today() + 'T' + clock();
+const students = () => Object.values(store.data.students).sort((a,b) => a.name.localeCompare(b.name));
+const student = no => store.data.students[no];
+const payments = () => Object.values(store.data.payments).sort((a,b) => a.at < b.at ? 1 : -1);
+const notes = () => Object.values(store.data.notes).sort((a,b) => a.requestedAt < b.requestedAt ? 1 : -1);
+const noteById = id => store.data.notes[id];
+
+/* ---------- ledger rules ---------- */
+function fees(s){ const f = CFG().fees, tuition = r2(s.units * f.perUnit), discount = r2(tuition * (s.discountPct||0) / 100), lab = f.lab[s.course] || 0;
+  return { tuition, discount, misc:f.misc, lab, net:r2(tuition - discount + f.misc + lab) }; }
+const paysOf = no => payments().filter(p => p.studentNo === no && !p.voided);
+const paidOf = no => r2(paysOf(no).reduce((a,p) => a + p.amount, 0));
+function noteApplied(n){ let t = 0; Object.values(store.data.payments).forEach(p => { if (!p.voided) (p.alloc||[]).forEach(a => { if (a.noteId === n.id) t += a.amount; }); }); return r2(t); }
+const outstanding = n => n.status === 'Approved' ? r2(Math.max(0, n.amountApproved - noteApplied(n))) : 0;
+function noteStatus(n){
+  if (n.status !== 'Approved') return n.status;
+  if (outstanding(n) <= 0) return 'Settled';
+  if (n.promisedDate < today()) return 'Overdue';
+  return noteApplied(n) > 0 ? 'Partially paid' : 'Approved';
+}
+const chip = st => `<span class="chip c-${esc(st.split(' ')[0])}">${esc(st)}</span>`;
+const tag = (cls, label) => `<span class="chip c-${cls}">${esc(label)}</span>`;
+
+/* Due now = cumulative amount required for the current exam period
+   − everything paid − promissory amounts the VP approved for this period (auto-deducted).
+   Approved amounts from earlier periods are no longer deducted, so they come back as part of what is due. */
+function ledger(s){
+  const F = fees(s), paid = paidOf(s.no), cur = CFG().period, ci = PERIODS.indexOf(cur);
+  const required = r2(F.net * CFG().schedule[cur] / 100);
+  const mine = notes().filter(n => n.studentNo === s.no);
+  const open = mine.filter(n => n.status === 'Approved' && outstanding(n) > 0).sort((a,b) => a.decidedAt < b.decidedAt ? -1 : 1);
+  const prior = open.filter(n => PERIODS.indexOf(n.period) < ci);
+  const curN = open.filter(n => n.period === cur);
+  const priorOut = r2(prior.reduce((a,n) => a + outstanding(n), 0));
+  const curDef = r2(curN.reduce((a,n) => a + outstanding(n), 0));
+  const due = r2(Math.max(0, required - paid - curDef));
+  const promPortion = r2(Math.min(priorOut, due));
+  const inst = r2(due - promPortion);
+  const balance = r2(Math.max(0, F.net - paid));
+  return { ...F, paid, required, due, priorOut, curDef, promPortion, inst, balance, prior, curN, mine, eligible: due <= 0 };
+}
+/* Payment allocation: carried-over promissory balances first, then this period's installment,
+   then this period's promissory amount, then the rest of the term. */
+function allocate(s, amount){
+  const L = ledger(s); let rem = r2(amount); const alloc = [];
+  const take = list => list.forEach(n => { if (rem <= 0) return; const a = r2(Math.min(rem, outstanding(n))); if (a > 0){ alloc.push({ noteId:n.id, amount:a }); rem = r2(rem - a); } });
+  take(L.prior); const inst = r2(Math.min(rem, L.inst)); rem = r2(rem - inst); take(L.curN);
+  return { alloc, inst, advance: rem };
+}
+/* The minimum rule: once a promissory note is approved, the student must pay at least the remaining due. */
+function payLimits(L){ return { min: L.due > 0 ? L.due : 0.01, max: L.balance }; }
+function checkAmount(L, amt){
+  const { min, max } = payLimits(L);
+  if (!(amt > 0)) return 'Enter an amount greater than zero.';
+  if (max <= 0) return 'This student has no remaining balance.';
+  if (amt < min) return `The minimum payment is ${peso(min)}, the full amount due now for ${CFG().period}. Partial payments below this are not accepted.`;
+  if (amt > max) return `The amount is more than the remaining term balance of ${peso(max)}.`;
+  return '';
+}
+async function postPayment(s, amount, method, channel, ref){
+  const A = allocate(s, amount); const id = 'P' + Date.now().toString(36).toUpperCase() + rand36(3);
+  const p = { id, or:'OR-' + today().replace(/-/g,'').slice(2) + '-' + rand36(4), studentNo:s.no, amount:r2(amount), method, type: method === 'Cash' ? 'Cash' : 'Cashless',
+    channel, at:stamp(), ref: ref || (method === 'Cash' ? '' : 'SBX-' + rand36(8)), alloc:A.alloc, inst:A.inst, advance:A.advance, by: channel === 'Kiosk' ? USERS.student : USERS.cashier };
+  await put('payments', id, p); return p;
+}
+function checksFor(n){
+  const s = student(n.studentNo), L = ledger(s), c = CFG();
+  const others = L.mine.filter(x => x.id !== n.id);
+  const overdue = others.filter(x => noteStatus(x) === 'Overdue');
+  const count = others.filter(x => x.status !== 'Rejected').length + 1;
+  return [
+    { ok:!overdue.length, label: overdue.length ? `Has overdue promissory ${overdue.map(x => x.id).join(', ')} (${peso(overdue.reduce((a,x) => a + outstanding(x), 0))} unpaid)` : 'No overdue promissory notes' },
+    { ok: count <= c.maxNotesPerSem, label:`Promissory notes this semester: ${count} of ${c.maxNotesPerSem} allowed` },
+    { ok: n.amountRequested <= r2(L.inst * c.maxDeferPct / 100), label:`Requested ${peso(n.amountRequested)} vs. ${c.period} installment ${peso(L.inst)}` },
+  ];
+}
+
+/* ---------- UI state (per device) ---------- */
+const newKiosk = () => ({ screen:'idle', no:null, pinFor:null, pin:'', err:'', amount:'', inserted:0, method:'', receipt:null, msg:'' });
+const ui = { role:'student', k:newKiosk(), c:{ q:'', no:null, tab:'pay', type:'Cash', f:{ q:'', type:'All', channel:'All', when:'Today' } }, v:{ tab:'approvals' }, modal:null, flash:0 };
+function toast(m){ document.getElementById('toast-root').innerHTML = `<div class="toast" role="status">${esc(m)}</div>`; clearTimeout(toast.t); toast.t = setTimeout(() => document.getElementById('toast-root').innerHTML = '', 3400); }
+function openModal(title, html){ ui.modal = { title, html }; renderModal(); }
+function closeModal(){ ui.modal = null; renderModal(); }
+function renderModal(){
+  const root = document.getElementById('modal-root');
+  root.innerHTML = ui.modal ? `<div class="scrim" data-act="scrim"><div class="modal" role="dialog" aria-modal="true" aria-label="${esc(ui.modal.title)}"><div class="row between"><h2>${esc(ui.modal.title)}</h2><button class="btn sm" data-act="close">Close</button></div>${ui.modal.html}</div></div>` : '';
+}
+/* Promissory requests are decided first come, first served. */
+const pendingQueue = () => notes().filter(n => n.status === 'Pending').sort((a,b) => a.requestedAt < b.requestedAt ? -1 : 1);
+
+/* ---------- fragments ---------- */
+function dueLines(L){
+  const c = CFG();
+  return `<div class="lines">
+    ${L.prior.map(n => `<div class="line pn"><span>Unpaid promissory ${esc(n.id)} (due ${fmtDate(n.promisedDate)})</span><span class="num">${peso(outstanding(n))}</span></div>`).join('')}
+    <div class="line"><span>${esc(c.period)} installment</span><span class="num">${peso(r2(L.inst + L.curDef))}</span></div>
+    ${L.curN.map(n => `<div class="line pn"><span>Less approved promissory ${esc(n.id)}</span><span class="num">−${peso(outstanding(n))}</span></div>`).join('')}
+    <div class="line total"><span>Amount to pay now</span><span class="num">${peso(L.due)}</span></div></div>`;
+}
+function receiptHTML(p){
+  const s = student(p.studentNo), L = ledger(s), c = CFG();
+  return `<div class="receipt"><div class="c"><b>${esc(c.school.toUpperCase())}</b><br>${esc(c.campus)}<br>Cashier's Office · Receipt (prototype)</div><hr>
+    <div class="l"><span>OR No.</span><b>${esc(p.or)}</b></div><div class="l"><span>Date</span><span>${esc(fmtDT(p.at))}</span></div>
+    <div class="l"><span>ID No.</span><span>${esc(s.no)}</span></div><div>${esc(s.name)} · ${esc(s.course)}-${s.year}</div><hr>
+    ${(p.alloc||[]).map(a => `<div class="l"><span>Promissory ${esc(a.noteId)}</span><span>${peso(a.amount)}</span></div>`).join('')}
+    ${p.inst > 0 ? `<div class="l"><span>Tuition installment</span><span>${peso(p.inst)}</span></div>` : ''}
+    ${p.advance > 0 ? `<div class="l"><span>Applied to term balance</span><span>${peso(p.advance)}</span></div>` : ''}<hr>
+    <div class="l big"><span>TOTAL PAID</span><span>${peso(p.amount)}</span></div>
+    <div class="l"><span>Payment</span><span>${esc(p.type)} · ${esc(p.method)}</span></div>${p.ref ? `<div class="l"><span>Ref.</span><span>${esc(p.ref)}</span></div>` : ''}
+    <div class="l"><span>Paid at</span><span>${esc(p.channel)}</span></div><hr>
+    <div class="l"><span>Due now (${esc(c.period)})</span><span>${peso(L.due)}</span></div><div class="l"><span>Term balance</span><span>${peso(L.balance)}</span></div>
+    <div class="l"><span>Exam permit</span><span>${L.eligible ? 'CLEARED' : 'NOT YET'}</span></div></div>`;
+}
+function permitHTML(s){
+  const c = CFG(); const no = 'EP-' + c.period.slice(0,3).toUpperCase() + '-' + s.no.replace('-','');
+  return `<div class="receipt permit"><div class="c"><b>${esc(c.school.toUpperCase())}</b><br>EXAMINATION PERMIT</div><hr>
+    <div class="l"><span>Permit No.</span><b>${esc(no)}</b></div><div class="l"><span>Exam</span><b>${esc(c.period.toUpperCase())}</b></div>
+    <div class="l"><span>Term</span><span>${esc(c.term)}</span></div><hr><div>${esc(s.name)}</div><div>${esc(s.no)} · ${esc(s.course)}-${s.year}</div><hr>
+    <div class="c">Present this permit to your proctor.</div></div>`;
+}
+
+/* ---------- render shell ---------- */
+function captureInputs(){
+  const m = {}; document.querySelectorAll('#app [id], #modal-root [id]').forEach(el => { if ((el.tagName === 'INPUT' && el.type !== 'file') || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') m[el.id] = el.value; });
+  const a = document.activeElement; return { m, focus: a && a.id, s: a && a.selectionStart, e: a && a.selectionEnd };
+}
+function restoreInputs(st){
+  Object.entries(st.m).forEach(([id,v]) => { const el = document.getElementById(id); if (el) el.value = v; });
+  if (st.focus){ const el = document.getElementById(st.focus); if (el){ el.focus(); try { if (st.s != null) el.setSelectionRange(st.s, st.e); } catch(e){} } }
+}
+function render(keep){
+  const st = keep ? captureInputs() : null;
+  const ready = COLLS.every(c => store.loaded[c]);
+  const pending = ready ? pendingQueue().length : 0;
+  document.getElementById('roles').innerHTML = [['student','Student'],['cashier','Cashier'],['vp','VP for Finance']]
+    .map(([k,l]) => `<button data-act="role" data-role="${k}" aria-pressed="${ui.role===k}">${l}${k === 'vp' && pending ? `<span class="badge">${pending}</span>` : ''}</button>`).join('');
+  const c = CFG();
+  document.getElementById('live').outerHTML = store.mode === 'live'
+    ? `<span class="live" id="live"><i></i>Live${c ? ` · ${esc(c.period)} · ${fmtDate(c.today)}` : ''}</span>`
+    : `<span class="live off" id="live"><i></i>${store.mode === 'local' ? 'Offline demo' : 'Connecting…'}${c ? ` · ${esc(c.period)} · ${fmtDate(c.today)}` : ''}</span>`;
+  const app = document.getElementById('app');
+  if (!ready) app.innerHTML = `<div class="panel empty"><h2>Connecting…</h2><p class="muted">Loading students, payments and promissory notes.</p></div>`;
+  else if (!c || !students().length) app.innerHTML = `<div class="panel empty"><h2>No students yet</h2><p class="muted">Load the sample students, fees and promissory notes to start the demo.</p><button class="btn primary" data-act="load_sample">Load sample data</button></div>`;
+  else app.innerHTML = ui.role === 'student' ? kioskView() : ui.role === 'cashier' ? cashierView() : vpView();
+  app.querySelectorAll('[data-qr]').forEach(el => { if (typeof QRCode !== 'undefined'){ el.innerHTML = ''; new QRCode(el, { text:el.dataset.qr, width:180, height:180 }); } });
+  if (st) restoreInputs(st);
+}
+
+/* ---------- STUDENT KIOSK ---------- */
+function kioskView(){
+  const k = ui.k, s = k.no ? student(k.no) : null, c = CFG();
+  const head = `<div class="k-head"><span class="k-brand"><span class="logo" aria-label="School logo">FBC</span><b>${esc(c.school)}</b></span>${s ? `<div class="row"><span class="small muted">${esc(s.no)}</span><button class="btn sm" data-act="k_out">Log out</button></div>` : `<span class="small muted">Payment Kiosk</span>`}</div>`;
+  const back = (to='home') => `<button class="btn sm" data-act="k_go" data-s="${to}">← Back</button>`;
+  let b = '';
+  if (k.screen === 'idle' && k.login !== 'number'){
+    b = `<div class="k-narrow" style="text-align:center">
+        <div class="stack" style="gap:6px"><h1 class="k-title">Welcome</h1><p class="muted">Tap your school ID card on the reader below the screen.</p></div>
+        <div class="tapzone" aria-hidden="true"><div class="card-icon"><span></span></div><p class="small muted">Waiting for your ID card…</p></div>
+        ${k.err ? `<div class="note bad">${esc(k.err)}</div>` : ''}
+        <div class="demo" style="text-align:left"><span class="eyebrow">Demo · simulate a card tap</span><div class="row"><select id="k-rfid" style="flex:1">${students().map(x => `<option value="${x.no}">${esc(x.name)}'s ID card</option>`).join('')}</select><button class="btn primary" data-act="k_tap">Tap card</button></div></div>
+        <button class="btn lg" data-act="k_login_mode" data-m="number">Log in using ID number</button>
+        <p class="small muted">PIN for every sample student: 1234</p></div>`;
+  } else if (k.screen === 'idle'){
+    b = `<form class="k-narrow" data-form="k_login" style="text-align:center">
+        <div class="stack" style="gap:6px"><h1 class="k-title">Log in with ID number</h1><p class="muted">Type the ID number printed on your school ID.</p></div>
+        <label for="k-no" style="text-align:left">ID number<input id="k-no" class="big-input" placeholder="0000-00000" autocomplete="off" inputmode="numeric"></label>
+        ${k.err ? `<div class="note bad">${esc(k.err)}</div>` : ''}
+        <button class="btn primary lg" type="submit">Continue</button>
+        <div class="stack" style="gap:6px"><span class="eyebrow">Sample ID numbers · PIN 1234</span><div class="samples">${students().map(x => `<button type="button" data-act="k_fill" data-no="${x.no}" title="${esc(x.name)}">${esc(x.no)}</button>`).join('')}</div></div>
+        <button class="btn ghost" type="button" data-act="k_login_mode" data-m="tap">← Tap ID card instead</button></form>`;
+  } else if (k.screen === 'pin'){
+    const p = student(k.pinFor);
+    b = `<div class="k-narrow" style="text-align:center"><div class="stack" style="gap:6px"><h1 class="k-title">Hi, ${esc(p.name.split(' ')[0])}</h1><p class="muted">Enter your 4-digit PIN. <span class="small">(Demo PIN: 1234)</span></p></div>
+      <div class="dots">${[0,1,2,3].map(i => `<i class="${i < k.pin.length ? 'on' : ''}"></i>`).join('')}</div>
+      ${k.err ? `<div class="note bad">${esc(k.err)}</div>` : ''}
+      <div class="pinpad">${['1','2','3','4','5','6','7','8','9','C','0','⌫'].map(d => `<button data-act="k_key" data-k="${d}" aria-label="${d==='⌫'?'Delete':d==='C'?'Clear':d}">${d}</button>`).join('')}</div>
+      <div><button class="btn ghost" data-act="k_out">Not you? Go back</button></div></div>`;
+  } else if (k.screen === 'home'){
+    const L = ledger(s);
+    const pend = L.mine.find(n => n.status === 'Pending');
+    const rej = L.mine.find(n => n.status === 'Rejected' && n.decidedAt.slice(0,10) >= addDays(today(), -7));
+    const notice = k.msg ? `<div class="note ok">${esc(k.msg)}</div>`
+      : L.curN.length ? `<div class="note pn"><span>Your promissory note was approved. <b>${peso(L.curDef)}</b> was taken off what you pay now. Pay it by ${fmtDate(L.curN[0].promisedDate)}.</span></div>`
+      : pend ? `<div class="note info">Your promissory request for ${peso(pend.amountRequested)} is waiting for the VP for Finance.</div>`
+      : rej ? `<div class="note bad">Your promissory request was not approved${rej.remarks ? `: ${esc(rej.remarks)}` : '.'}</div>` : '';
+    b = `<div class="row between"><div><h1 class="k-title">Hi, ${esc(s.name.split(' ')[0])}</h1><p class="muted">${esc(s.name)} · ${esc(s.course)}-${s.year}</p></div>${L.eligible ? tag('good','Exam permit cleared') : ''}</div>
+      ${notice}
+      <div class="duecard"><div><span class="eyebrow">Amount to pay now · ${esc(c.period)} exams</span><div class="k-big" style="margin-top:6px">${peso(L.due)}</div></div>${dueLines(L)}
+        <div class="line small muted"><span>Whole-term balance</span><span class="num">${peso(L.balance)}</span></div></div>
+      <div class="k-actions"><button class="btn primary lg" data-act="k_pay" ${L.balance <= 0 ? 'disabled' : ''}>Pay now</button><button class="btn lg" data-act="k_go" data-s="request">Request a promissory note</button></div>
+      <div class="k-links"><button class="btn ghost" data-act="k_go" data-s="details">View assessment & history</button>${L.eligible ? `<button class="btn ghost" data-act="k_go" data-s="permit">Print exam permit</button>` : ''}</div>`;
+  } else if (k.screen === 'pay'){
+    const L = ledger(s), lim = payLimits(L);
+    b = `<div class="row between"><h1 class="k-title">Pay now</h1>${back()}</div>
+      <div class="two"><div class="step"><span class="step-n">1 · Amount</span>
+          <input id="k-amt-${s.no}" class="big-input" type="number" step="0.01" min="${lim.min}" max="${lim.max}" value="${k.amount}" aria-label="Amount to pay">
+          <div class="row"><button class="btn sm" data-act="k_setamt" data-v="${L.due}" ${L.due > 0 ? '' : 'disabled'}>Amount due · ${peso(L.due)}</button><button class="btn sm" data-act="k_setamt" data-v="${L.balance}">Full balance · ${peso(L.balance)}</button></div>
+          <p class="small muted">Minimum ${peso(lim.min)}. You can pay more, but not less.</p>
+          ${k.err ? `<div class="note bad">${esc(k.err)}</div>` : ''}</div>
+        <div class="step"><span class="step-n">2 · Payment method</span><div class="methods">
+          <button class="method" data-act="k_method" data-m="Cash"><span><b>Cash</b><span>Insert bills into the kiosk</span></span><em>→</em></button>
+          <button class="method" data-act="k_method" data-m="GCash"><span><b>GCash</b><span>Cashless · scan a QR code</span></span><em>→</em></button>
+          <button class="method" data-act="k_method" data-m="Maya"><span><b>Maya</b><span>Cashless · scan a QR code</span></span><em>→</em></button></div></div></div>`;
+  } else if (k.screen === 'cash'){
+    const left = r2(k.amount - k.inserted);
+    b = `<div class="row between"><h1 class="k-title">Insert ${peso(k.amount)}</h1><button class="btn sm danger" data-act="k_cash_cancel">Cancel</button></div>
+      <div class="two"><div class="duecard"><div class="lines"><div class="line"><span>To pay</span><span class="num">${peso(k.amount)}</span></div><div class="line"><span>Inserted</span><span class="num">${peso(k.inserted)}</span></div>
+          <div class="line total"><span>${left > 0 ? 'Still needed' : 'Extra (credited to your balance)'}</span><span class="num">${peso(Math.abs(left))}</span></div></div>
+          <button class="btn ok lg" data-act="k_cash_done" ${left > 0 ? 'disabled' : ''}>Finish payment</button></div>
+        <div class="demo"><span class="eyebrow">Demo · bill acceptor</span><div class="bills">${[20,50,100,200,500,1000].map(v => `<button data-act="k_bill" data-v="${v}">₱${v.toLocaleString()}</button>`).join('')}</div><button class="btn sm" data-act="k_bill" data-v="exact">Insert exact amount</button></div></div>`;
+  } else if (k.screen === 'ewallet'){
+    b = `<div class="row between"><h1 class="k-title">Pay ${peso(k.amount)} with ${esc(k.method)}</h1><button class="btn sm" data-act="k_pay">← Back</button></div>
+      <div class="k-narrow" style="text-align:center"><p class="muted">Open ${esc(k.method)}, tap Scan, and scan this code.</p>
+        <div class="qrbox" data-qr="PAYPOINT|${esc(k.method)}|${esc(s.no)}|${Math.round(k.amount*100)}|${esc(k.ewRef)}"></div>
+        ${k.err ? `<div class="note bad">${esc(k.err)}</div>` : ''}
+        <div class="demo"><span class="eyebrow">Demo · payment gateway</span><div class="row center"><button class="btn ok" data-act="k_ew_ok">Payment successful</button><button class="btn danger" data-act="k_ew_fail">Payment failed</button></div></div></div>`;
+  } else if (k.screen === 'receipt'){
+    const L = ledger(s);
+    b = `<div style="text-align:center" class="stack"><h1 class="k-title">Payment received</h1><p class="muted">Please take your receipt.</p></div>${receiptHTML(k.receipt)}
+      <div class="row center">${L.eligible ? `<button class="btn primary" data-act="k_go" data-s="permit">Print exam permit</button>` : ''}<button class="btn" data-act="k_out">Done</button></div>`;
+  } else if (k.screen === 'permit'){
+    b = `<div style="text-align:center"><h1 class="k-title">Exam permit printed</h1></div>${permitHTML(s)}<div class="row center"><button class="btn" data-act="k_go" data-s="home">Back</button><button class="btn" data-act="k_out">Done</button></div>`;
+  } else if (k.screen === 'request'){
+    const L = ledger(s), max = r2(L.inst * c.maxDeferPct / 100);
+    const overdue = L.mine.filter(n => noteStatus(n) === 'Overdue'), pend = L.mine.find(n => n.status === 'Pending');
+    const pos = pend ? pendingQueue().findIndex(n => n.id === pend.id) + 1 : 0;
+    const blocked = overdue.length ? `You still have an unpaid promissory balance that is past due. Please settle it first.`
+      : pend ? `You already have a request waiting for the VP for Finance (number ${pos} in line).` : L.curN.length ? `You already have an approved promissory note for ${c.period}.`
+      : L.inst <= 0 ? `You have nothing left to defer for ${c.period}.` : '';
+    b = `<div class="row between"><h1 class="k-title">Request a promissory note</h1>${back()}</div>
+      ${blocked ? `<div class="note info">${esc(blocked)}</div>` : `<p class="muted">If the VP for Finance approves, the amount is taken off what you pay now. You must pay the rest in full, and pay the promissory amount by the date you choose.</p>
+      <div class="form2"><label for="r-amt">Amount to pay later (up to ${peso(max)})<input id="r-amt" type="number" min="1" step="0.01" max="${max}"></label>
+        <label for="r-date">I will pay it by<input id="r-date" type="date" min="${addDays(today(),1)}" value="${addDays(today(),30)}"></label>
+        <label for="r-reason">Reason<select id="r-reason"><option>Financial difficulty</option><option>Delayed remittance</option><option>Medical emergency</option><option>Calamity / disaster</option><option>Other</option></select></label>
+        <label for="r-guard">Parent / guardian<input id="r-guard"></label>
+        <label for="r-contact">Guardian's mobile<input id="r-contact" placeholder="09XX XXX XXXX"></label></div>
+      <label for="r-details">Explain briefly<textarea id="r-details"></textarea></label>
+      ${k.err ? `<div class="note bad">${esc(k.err)}</div>` : ''}<div class="row end"><button class="btn primary lg" data-act="k_request">Send request</button></div>`}`;
+  } else if (k.screen === 'details'){
+    const L = ledger(s);
+    b = `<div class="row between"><h1 class="k-title">Assessment</h1>${back()}</div>
+      <div class="duecard"><div class="lines">
+        <div class="line"><span>Tuition · ${s.units} units × ${peso(c.fees.perUnit)}</span><span class="num">${peso(L.tuition)}</span></div>
+        ${L.discount ? `<div class="line"><span>Scholarship (${s.discountPct}%)</span><span class="num">−${peso(L.discount)}</span></div>` : ''}
+        <div class="line"><span>Miscellaneous</span><span class="num">${peso(L.misc)}</span></div><div class="line"><span>Laboratory</span><span class="num">${peso(L.lab)}</span></div>
+        <div class="line total"><span>Total</span><span class="num">${peso(L.net)}</span></div><div class="line"><span>Paid</span><span class="num">−${peso(L.paid)}</span></div>
+        <div class="line total"><span>Balance</span><span class="num">${peso(L.balance)}</span></div></div></div>
+      <div class="stack"><h3>Payments</h3><div class="tbl"><table><tbody>
+        ${paysOf(s.no).map(p => `<tr><td>${fmtDate(p.at)}</td><td>${tag(p.type,p.type)} <span class="small muted">${esc(p.method)}</span></td><td class="r num">${peso(p.amount)}</td></tr>`).join('') || '<tr><td class="muted">No payments yet.</td></tr>'}</tbody></table></div></div>
+      ${L.mine.length ? `<div class="stack"><h3>Promissory notes</h3><div class="tbl"><table><tbody>
+        ${L.mine.map(n => `<tr><td>${esc(n.period)}</td><td class="num">${peso(n.amountApproved || n.amountRequested)}</td><td class="small muted">pay by ${fmtDate(n.promisedDate)}</td><td class="r">${chip(noteStatus(n))}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`;
+  }
+  return `<section class="kiosk" aria-label="Student kiosk">${head}<div class="k-body">${b}</div></section>`;
+}
+
+/* ---------- CASHIER ---------- */
+function txFilter(list, f){
+  const q = f.q.trim().toLowerCase();
+  return list.filter(p => (f.type === 'All' || p.type === f.type) && (f.channel === 'All' || p.channel === f.channel) && (f.when === 'All' || p.at.slice(0,10) === today())
+    && (!q || [p.or, p.studentNo, (student(p.studentNo)||{}).name, p.method, p.ref].join(' ').toLowerCase().includes(q)));
+}
+const sumOf = l => r2(l.reduce((a,p) => a + p.amount, 0));
+function cashierView(){
+  const c = ui.c;
+  const todays = payments().filter(p => p.at.slice(0,10) === today() && !p.voided);
+  const strip = `<div class="strip"><div><small>Collected today</small><b>${peso(sumOf(todays))}</b></div><div><small>Cash</small><b>${peso(sumOf(todays.filter(p => p.type === 'Cash')))}</b></div>
+    <div><small>Cashless</small><b>${peso(sumOf(todays.filter(p => p.type === 'Cashless')))}</b></div><div><small>Transactions</small><b>${todays.length}</b></div></div>`;
+  const tabs = `<nav class="tabs" aria-label="Cashier"><button data-act="c_tab" data-t="pay" aria-pressed="${c.tab==='pay'}">Accept payment</button><button data-act="c_tab" data-t="tx" aria-pressed="${c.tab==='tx'}">All transactions</button></nav>`;
+  if (c.tab === 'tx'){
+    const list = txFilter(payments(), c.f);
+    return strip + tabs + `<section class="panel stack"><div class="filters">
+      <label for="f-q">Search<input id="f-q" data-input="f_q" placeholder="Name, ID number, OR or reference" value="${esc(c.f.q)}"></label>
+      <label for="f-type">Type<select id="f-type" data-change="f_type">${['All','Cash','Cashless'].map(x => `<option ${x===c.f.type?'selected':''}>${x}</option>`).join('')}</select></label>
+      <label for="f-ch">Paid at<select id="f-ch" data-change="f_ch">${['All','Kiosk','Cashier'].map(x => `<option ${x===c.f.channel?'selected':''}>${x}</option>`).join('')}</select></label>
+      <label for="f-when">Date<select id="f-when" data-change="f_when"><option value="Today" ${c.f.when==='Today'?'selected':''}>Today</option><option value="All" ${c.f.when==='All'?'selected':''}>Whole term</option></select></label></div>
+      <div class="row between"><span class="muted small">${list.length} transaction${list.length===1?'':'s'}</span><b class="num">${peso(sumOf(list))}</b></div>
+      <div class="tbl"><table><thead><tr><th>OR No.</th><th>Date</th><th>Student</th><th>Type</th><th>Paid at</th><th class="r">Amount</th><th></th></tr></thead><tbody>
+      ${list.map((p,i) => `<tr class="${i===0 && ui.flash > Date.now()-4000 ? 'flash' : ''}"><td class="mono small">${esc(p.or)}</td><td class="small">${fmtDT(p.at)}</td><td>${esc((student(p.studentNo)||{}).name)}</td>
+        <td>${tag(p.type,p.type)} <span class="small muted">${esc(p.method)}</span></td><td class="small">${esc(p.channel)}</td><td class="r num">${peso(p.amount)}</td><td class="r"><button class="btn sm" data-act="show_receipt" data-id="${p.id}">View</button></td></tr>`).join('') || '<tr><td colspan="7" class="muted">No transactions match.</td></tr>'}
+      </tbody></table></div></section>`;
+  }
+  const q = c.q.trim().toLowerCase();
+  const res = q ? students().filter(s => s.name.toLowerCase().includes(q) || s.no.includes(q)) : students();
+  const s = c.no ? student(c.no) : null;
+  let right = `<section class="panel empty"><h3>Search for a student</h3><p class="muted">Pick a name to see exactly how much they need to pay.</p></section>`;
+  if (s){
+    const L = ledger(s), lim = payLimits(L), cash = c.type === 'Cash';
+    right = `<section class="panel stack"><div class="row between"><div><h2>${esc(s.name)}</h2><p class="muted small mono">${esc(s.no)} · ${esc(s.course)}-${s.year}</p></div>${L.eligible ? tag('good','Permit cleared') : ''}</div>
+      <div class="paynow"><small>Amount to pay now · ${esc(CFG().period)}</small><span class="num">${peso(L.due)}</span><small>Will not accept less than ${peso(lim.min)}</small></div>
+      ${dueLines(L)}
+      <div class="form2">
+        <label for="c-amt-${s.no}">Amount received<input id="c-amt-${s.no}" type="number" step="0.01" min="${lim.min}" max="${lim.max}" value="${L.due || ''}"></label>
+        <label for="c-type">Payment type<select id="c-type" data-change="c_type"><option value="Cash" ${c.type==='Cash'?'selected':''}>Cash</option><option value="GCash" ${c.type==='GCash'?'selected':''}>Cashless · GCash</option><option value="Maya" ${c.type==='Maya'?'selected':''}>Cashless · Maya</option><option value="Bank transfer" ${c.type==='Bank transfer'?'selected':''}>Cashless · Bank transfer</option></select></label>
+        ${cash ? `<label for="c-tender-${s.no}">Cash handed over<input id="c-tender-${s.no}" type="number" step="0.01" min="0" placeholder="For change"></label>` : `<label for="c-ref-${s.no}">Reference number<input id="c-ref-${s.no}" placeholder="From the student's app"></label>`}</div>
+      <button class="btn primary lg" data-act="c_post" ${L.balance <= 0 ? 'disabled' : ''}>Post payment</button></section>`;
+  }
+  return strip + tabs + `<div class="two"><section class="panel stack"><label for="c-q">Find a student<input id="c-q" data-input="c_q" placeholder="Type a name or ID number" value="${esc(c.q)}" autocomplete="off"></label>
+    <div class="results">${res.map(x => { const L = ledger(x); return `<button class="result ${x.no===c.no?'sel':''}" data-act="c_pick" data-no="${x.no}"><span><b>${esc(x.name)}</b><small>${esc(x.no)}</small></span><span class="num">${peso(L.due)}</span></button>`; }).join('') || '<p class="muted">No student matches.</p>'}</div></section>${right}</div>`;
+}
+
+/* ---------- VP FOR FINANCE ---------- */
+function vpView(){
+  const v = ui.v, c = CFG(), queue = pendingQueue();
+  const nav = `<nav class="tabs" aria-label="VP for Finance">${[['approvals',`Promissory requests${queue.length ? ` (${queue.length})` : ''}`],['overview','Overview'],['settings','Settings']].map(([k,l]) => `<button data-act="v_tab" data-t="${k}" aria-pressed="${v.tab===k}">${l}</button>`).join('')}</nav>`;
+  if (v.tab === 'approvals'){
+    if (!queue.length) return nav + `<section class="panel empty"><h2>No requests waiting</h2><p class="muted">New promissory requests from the kiosk will appear here, one at a time, in the order they were sent.</p></section>`;
+    return nav + `<div class="stack" style="max-width:760px;margin:0 auto">
+      <div class="row between"><h2>Next in line</h2><span class="queue-pill">${queue.length > 1 ? `<b>${queue.length - 1}</b> more waiting` : 'Last one in line'}</span></div>
+      ${requestCard(queue[0])}
+      ${queue.length > 1 ? `<p class="small muted" style="text-align:center">Requests are decided first come, first served. The next one appears after you approve or reject this one.</p>` : ''}</div>`;
+  }
+  if (v.tab === 'overview'){
+    const all = payments().filter(p => !p.voided), approved = notes().filter(n => n.status === 'Approved');
+    const deferred = r2(approved.reduce((a,n) => a + outstanding(n), 0)), overdue = approved.filter(n => noteStatus(n) === 'Overdue');
+    const decided = notes().filter(n => n.status !== 'Pending').sort((a,b) => a.decidedAt < b.decidedAt ? 1 : -1);
+    return nav + `<div class="strip"><div><small>Collected today</small><b>${peso(sumOf(all.filter(p => p.at.slice(0,10) === today())))}</b></div><div><small>Collected this term</small><b>${peso(sumOf(all))}</b></div>
+        <div><small>Unpaid promissory</small><b>${peso(deferred)}</b></div><div class="${overdue.length ? 'warn' : ''}"><small>Overdue notes</small><b>${overdue.length}</b></div></div>
+      <div class="two"><section class="panel stack"><h2>Latest payments</h2><div class="tbl"><table><tbody>${payments().slice(0,8).map((p,i) => `<tr class="${i===0 && ui.flash > Date.now()-4000 ? 'flash' : ''}"><td>${esc((student(p.studentNo)||{}).name)}<div class="small muted">${fmtDT(p.at)} · ${esc(p.channel)}</div></td><td>${tag(p.type,p.type)}</td><td class="r num">${peso(p.amount)}</td></tr>`).join('')}</tbody></table></div></section>
+      <section class="panel stack"><h2>Decided promissory notes</h2><div class="tbl"><table><tbody>${decided.map(n => `<tr><td>${esc((student(n.studentNo)||{}).name)}<div class="small muted">${esc(n.period)} · pay by ${fmtDate(n.promisedDate)}</div></td><td class="r num">${peso(n.amountApproved || n.amountRequested)}</td><td class="r">${chip(noteStatus(n))}</td></tr>`).join('') || '<tr><td class="muted">None yet.</td></tr>'}</tbody></table></div></section></div>`;
+  }
+  return nav + `<div class="two"><section class="panel stack"><h2>Term settings</h2>
+      <label for="s-period">Current exam period<select id="s-period">${PERIODS.map(p => `<option ${p===c.period?'selected':''}>${p}</option>`).join('')}</select></label>
+      <label for="s-today">System date (change it to test due dates)<input id="s-today" type="date" value="${c.today}"></label>
+      <label for="s-max">Promissory notes allowed per semester<input id="s-max" type="number" min="1" value="${c.maxNotesPerSem}"></label>
+      <label for="s-pct">Max % of the installment that can be deferred<input id="s-pct" type="number" min="1" max="100" value="${c.maxDeferPct}"></label>
+      <div class="row end"><button class="btn primary" data-act="v_save">Save settings</button></div></section>
+    <section class="panel stack"><h2>Demo data</h2><p class="muted">Restore the six sample students, their payments and promissory notes. This erases every payment and request made during the demo, on every device.</p>
+      <div><button class="btn danger" data-act="v_reset">Reset sample data</button></div></section></div>`;
+}
+function requestCard(n){
+  const s = student(n.studentNo); if (!s) return ''; const L = ledger(s), ch = checksFor(n), suggested = Math.min(n.amountRequested, L.inst);
+  return `<section class="panel req">
+    <div class="req-head"><div><span class="eyebrow">Sent ${fmtDT(n.requestedAt)}</span><h2 style="margin-top:4px">${esc(s.name)}</h2><p class="muted small mono">${esc(s.no)} · ${esc(s.course)}-${s.year}</p></div>
+      <div style="text-align:right"><span class="eyebrow">Requested</span><div class="req-amt" style="margin-top:4px">${peso(n.amountRequested)}</div><p class="small muted">pay by ${fmtDate(n.promisedDate)}</p></div></div>
+    <div><b>${esc(n.reason)}.</b> ${esc(n.details)}<p class="small muted" style="margin-top:4px">Guardian: ${esc(n.guardian)}${n.contact ? ` · ${esc(n.contact)}` : ''}</p></div>
+    <div class="facts"><div><small>${esc(CFG().period)} installment</small><b>${peso(L.inst)}</b></div><div><small>Paid this term</small><b>${peso(L.paid)}</b></div><div><small>Must pay now if approved</small><b>${peso(Math.max(0, L.due - suggested))}</b></div></div>
+    <ul class="checks">${ch.map(x => `<li><span class="${x.ok?'ck-ok':'ck-bad'}">${x.ok?'✓':'✗'}</span>${esc(x.label)}</li>`).join('')}</ul>
+    <div class="form2"><label for="v-amt-${n.id}">Amount to approve<input id="v-amt-${n.id}" type="number" min="1" step="0.01" max="${L.inst}" value="${suggested}"></label><label for="v-rem-${n.id}">Remarks (required to reject)<input id="v-rem-${n.id}"></label></div>
+    <div class="row end"><button class="btn danger" data-act="v_reject" data-id="${n.id}">Reject</button><button class="btn primary" data-act="v_approve" data-id="${n.id}">Approve & deduct</button></div></section>`;
+}
+
+/* ---------- actions ---------- */
+const val = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+const busy = { on:false };
+async function guard(fn){ if (busy.on) return; busy.on = true; try { await fn(); } catch(e){} finally { busy.on = false; render(false); } }
+function kLogin(no){ no = String(no || '').trim(); if (!student(no)){ ui.k.err = no ? `No student found with ID number ${no}. Check it and try again.` : 'Enter your ID number.'; return; } Object.assign(ui.k, { screen:'pin', pinFor:no, pin:'', err:'' }); }
+async function kFinish(method){ const s = student(ui.k.no), L = ledger(s), err = checkAmount(L, +ui.k.amount);
+  if (err){ Object.assign(ui.k, { screen:'pay', err }); return; }
+  const p = await postPayment(s, method === 'Cash' ? Math.min(ui.k.inserted, L.balance) : +ui.k.amount, method, 'Kiosk');
+  Object.assign(ui.k, { screen:'receipt', receipt:p, inserted:0, err:'' }); }
+
+const ACT = {
+  role: d => { ui.role = d.role; },
+  close: () => closeModal(),
+  scrim: (d, el, e) => { if (e.target === el) closeModal(); return 'skip'; },
+  load_sample: () => guard(seedStore),
+  show_receipt: d => { openModal('Receipt', receiptHTML(store.data.payments[d.id])); return 'skip'; },
+  k_fill: d => { const el = document.getElementById('k-no'); if (el){ el.value = d.no; el.focus(); } ui.k.err = ''; return 'skip'; },
+  k_tap: () => kLogin(val('k-rfid')),
+  k_login_mode: d => { ui.k.login = d.m; ui.k.err = ''; },
+  k_key: d => { const k = ui.k; k.err = '';
+    if (d.k === 'C') k.pin = ''; else if (d.k === '⌫') k.pin = k.pin.slice(0,-1); else if (k.pin.length < 4) k.pin += d.k;
+    if (k.pin.length === 4){ const s = student(k.pinFor); if (s.pin === k.pin) Object.assign(k, { no:s.no, screen:'home', pin:'', msg:'' }); else { k.pin = ''; k.err = 'Wrong PIN. The demo PIN is 1234.'; } } },
+  k_out: () => { ui.k = newKiosk(); },
+  k_go: d => { Object.assign(ui.k, { screen:d.s, err:'', msg: d.s === 'home' ? ui.k.msg : '' }); },
+  k_pay: () => { const L = ledger(student(ui.k.no)); Object.assign(ui.k, { screen:'pay', amount: L.due || '', err:'', msg:'' }); },
+  k_setamt: d => { ui.k.amount = +d.v; ui.k.err = ''; },
+  k_method: d => { const k = ui.k, s = student(k.no); k.amount = r2(+val('k-amt-' + s.no) || 0); const err = checkAmount(ledger(s), k.amount);
+    if (err){ k.err = err; return; }
+    if (d.m === 'Cash') Object.assign(k, { screen:'cash', inserted:0, method:'Cash', err:'' }); else Object.assign(k, { screen:'ewallet', method:d.m, ewRef:rand36(10), err:'' }); },
+  k_bill: d => { ui.k.inserted = d.v === 'exact' ? Math.max(ui.k.inserted, ui.k.amount) : r2(ui.k.inserted + +d.v); },
+  k_cash_cancel: () => { if (ui.k.inserted > 0) toast(`${peso(ui.k.inserted)} returned.`); Object.assign(ui.k, { inserted:0, screen:'pay' }); },
+  k_cash_done: () => guard(() => kFinish('Cash')),
+  k_ew_ok: () => guard(() => kFinish(ui.k.method)),
+  k_ew_fail: () => { ui.k.err = `${ui.k.method} did not confirm the payment. You were not charged.`; },
+  k_request: () => guard(async () => { const k = ui.k, s = student(k.no), L = ledger(s), c = CFG();
+    const amt = r2(+val('r-amt')), date = val('r-date'), guardian = val('r-guard').trim(), contact = val('r-contact').trim(), details = val('r-details').trim(), max = r2(L.inst * c.maxDeferPct / 100);
+    if (!(amt > 0)) return void (k.err = 'Enter the amount you want to pay later.');
+    if (amt > max) return void (k.err = `You can defer up to ${peso(max)}.`);
+    if (!date || date <= today()) return void (k.err = 'Choose a payment date after today.');
+    if (!guardian) return void (k.err = "Enter your parent or guardian's name.");
+    if (!details) return void (k.err = 'Briefly explain your reason.');
+    const id = 'PN-' + today().replace(/-/g,'').slice(2) + rand36(3);
+    await put('notes', id, { id, studentNo:s.no, period:c.period, amountRequested:amt, amountApproved:0, reason:val('r-reason'), details, promisedDate:date, guardian, contact, status:'Pending', requestedAt:stamp(), decidedAt:'', decidedBy:'', remarks:'' });
+    Object.assign(k, { screen:'home', err:'', msg:`Request sent. You are number ${pendingQueue().findIndex(n => n.id === id) + 1} in line for the VP for Finance.` }); }),
+  c_tab: d => { ui.c.tab = d.t; },
+  c_pick: d => { ui.c.no = d.no; },
+  c_post: () => guard(async () => { const s = student(ui.c.no), L = ledger(s), method = ui.c.type;
+    const amt = r2(+val('c-amt-' + s.no)), tender = r2(+val('c-tender-' + s.no) || 0), ref = val('c-ref-' + s.no).trim();
+    const err = checkAmount(L, amt); if (err) return void toast(err);
+    if (method === 'Cash' && tender && tender < amt) return void toast('The cash handed over is less than the amount.');
+    if (method !== 'Cash' && !ref) return void toast('Enter the reference number of the cashless payment.');
+    const p = await postPayment(s, amt, method, 'Cashier', method === 'Cash' ? '' : ref);
+    openModal('Payment posted', (method === 'Cash' && tender ? `<div class="note ok">Change: <b class="num">${peso(tender - amt)}</b></div>` : '') + receiptHTML(p)); }),
+  v_tab: d => { ui.v.tab = d.t; },
+  v_approve: d => guard(async () => { const n = noteById(d.id), s = student(n.studentNo), L = ledger(s), amt = r2(+val('v-amt-' + n.id));
+    if (pendingQueue()[0].id !== n.id) return void toast('Another request came first. Decide on that one first.');
+    if (!(amt > 0)) return void toast('Enter the amount to approve.');
+    if (amt > L.inst) return void toast(`You can approve up to ${peso(L.inst)}, the ${CFG().period} installment still unpaid.`);
+    await put('notes', n.id, { ...n, period:CFG().period, status:'Approved', amountApproved:amt, decidedAt:stamp(), decidedBy:USERS.vp, remarks:val('v-rem-' + n.id).trim() });
+    toast(`Approved. ${peso(amt)} deducted from ${s.name}'s amount due.`); }),
+  v_reject: d => guard(async () => { const n = noteById(d.id), rem = val('v-rem-' + n.id).trim();
+    if (!rem) return void toast('Add a remark so the student knows why.');
+    await put('notes', n.id, { ...n, status:'Rejected', decidedAt:stamp(), decidedBy:USERS.vp, remarks:rem }); toast(`Request from ${(student(n.studentNo)||{}).name} rejected.`); }),
+  v_save: () => guard(async () => { const c = CFG();
+    await put('config', 'main', { ...c, period:val('s-period'), today:val('s-today') || c.today, maxNotesPerSem:+val('s-max') || 1, maxDeferPct:Math.min(100, +val('s-pct') || 100) }); toast('Settings saved for every screen.'); }),
+  v_reset: () => { openModal('Reset sample data?', `<p>This erases every payment and promissory request made during the demo, on every device, and restores the sample students.</p><div class="row end"><button class="btn" data-act="close">Keep my data</button><button class="btn danger" data-act="v_reset_ok">Reset</button></div>`); return 'skip'; },
+  v_reset_ok: () => { closeModal(); return guard(async () => { await seedStore(true); ui.k = newKiosk(); toast('Sample data restored.'); }); },
+};
+async function seedStore(wipe){
+  const D = sampleData();
+  if (wipe) for (const c of ['payments','notes']) for (const id of Object.keys(store.data[c])) if (!D[c][id]) await remove(c, id);
+  for (const c of COLLS) for (const [id, doc] of Object.entries(D[c])) await put(c, id, doc);
+}
+const INPUT = { c_q: el => { ui.c.q = el.value; }, f_q: el => { ui.c.f.q = el.value; } };
+const CHANGE = { f_type: el => { ui.c.f.type = el.value; }, f_ch: el => { ui.c.f.channel = el.value; }, f_when: el => { ui.c.f.when = el.value; }, c_type: el => { ui.c.type = el.value; } };
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return; const fn = ACT[el.dataset.act]; if (!fn) return;
+  const r = fn(el.dataset, el, e); if (r === 'skip' || (r && typeof r.then === 'function')) return; render(false);
+});
+document.addEventListener('submit', e => { if (e.target.dataset.form === 'k_login'){ e.preventDefault(); kLogin(val('k-no')); render(false); } });
+document.addEventListener('input', e => { const n = e.target.dataset && e.target.dataset.input; if (n && INPUT[n]){ INPUT[n](e.target); render(true); }
+  if (e.target.id && e.target.id.startsWith('k-amt-')) ui.k.amount = e.target.value; });
+document.addEventListener('change', e => { const n = e.target.dataset && e.target.dataset.change; if (n && CHANGE[n]){ CHANGE[n](e.target); render(true); } });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && ui.modal) closeModal();
+  if (ui.role === 'student' && ui.k.screen === 'pin' && !e.target.closest('input,select,textarea')){
+    if (/^[0-9]$/.test(e.key)){ ACT.k_key({ k:e.key }); render(false); } else if (e.key === 'Backspace'){ ACT.k_key({ k:'⌫' }); render(false); } }
+});
+render(true); startStore();
+</script>
+
+</body>
+</html>
