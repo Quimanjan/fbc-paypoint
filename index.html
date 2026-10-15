@@ -175,6 +175,30 @@ details.alt[open] summary{margin-bottom:10px}
 .queue-pill b{font-family:var(--f-mono)}
 .flash td{animation:flash 1.8s ease-out}
 @keyframes flash{from{background:var(--pn-soft)}}
+/* FBC Assistant (kiosk help chat) */
+.assist{display:grid;gap:14px;grid-template-rows:auto 1fr auto;min-height:440px}
+.chat{display:grid;gap:12px;align-content:start;max-height:430px;overflow-y:auto;padding:4px 4px 8px;scroll-behavior:smooth}
+.msg{max-width:88%;border-radius:16px;padding:12px 16px;line-height:1.55;font-size:.95rem}
+.msg.bot{background:var(--sunk);justify-self:start;border-top-left-radius:4px}
+.msg.user{background:var(--accent);color:var(--accent-ink);justify-self:end;border-top-right-radius:4px;font-weight:600}
+.msg h4{font-family:var(--f-display);font-size:1rem;margin:10px 0 4px;color:var(--accent)}
+.msg h4:first-child{margin-top:0}
+.msg ul,.msg ol{margin:4px 0 4px;padding-left:20px;display:grid;gap:3px}
+.msg p{margin:0 0 6px}
+.msg p:last-child{margin-bottom:0}
+.msg .src{display:block;margin-top:8px;font-size:.78rem;color:var(--muted)}
+.msg .note{display:block;margin-top:8px;font-size:.82rem;color:var(--pn)}
+.bot-name{display:flex;align-items:center;gap:8px;font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.typing{display:inline-flex;gap:5px;padding:14px 16px}
+.typing i{width:8px;height:8px;border-radius:50%;background:var(--muted);opacity:.4}
+@media (prefers-reduced-motion:no-preference){.typing i{animation:blink 1s infinite}.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}@keyframes blink{50%{opacity:1}}}
+.quick{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;border-top:1px solid var(--line);padding-top:14px}
+.quick button{border:1.5px solid var(--accent);background:var(--surface);color:var(--accent);border-radius:12px;padding:10px 12px;font-weight:700;cursor:pointer;text-align:center;line-height:1.25;min-height:52px}
+.quick button:hover:not(:disabled){background:var(--accent-soft)}
+.quick button:disabled{opacity:.45;cursor:wait}
+@media (max-width:700px){.quick{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.assist-btn{display:inline-flex;align-items:center;gap:8px}
+.assist-btn .dot{width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:inline-grid;place-items:center;font-size:.8rem;font-weight:800}
 .empty{padding:48px 16px;text-align:center;display:grid;gap:10px;justify-items:center}
 .scrim{position:fixed;inset:0;background:rgba(10,14,18,.55);display:grid;place-items:center;padding:16px;z-index:20}
 .modal{background:var(--surface);border-radius:16px;max-width:520px;width:100%;max-height:90vh;overflow:auto;padding:22px;display:grid;gap:16px}
@@ -447,6 +471,73 @@ function render(keep){
   else app.innerHTML = ui.role === 'student' ? kioskView() : ui.role === 'cashier' ? cashierView() : vpView();
   app.querySelectorAll('[data-qr]').forEach(el => { if (typeof QRCode !== 'undefined'){ el.innerHTML = ''; new QRCode(el, { text:el.dataset.qr, width:180, height:180 }); } });
   if (st) restoreInputs(st);
+  const chatLog = document.getElementById('chat-log'); if (chatLog){ const qs = chatLog.querySelectorAll('.msg.user'); const last = qs[qs.length - 1]; chatLog.scrollTop = last ? last.offsetTop - chatLog.offsetTop - 4 : 0; }
+}
+
+/* ---------- FBC Assistant: pre-defined questions and answers ----------
+   Sources: fbc.edu.ph (About, Admissions, Academics, Scholarship, News and Advisories),
+   Wikipedia "Fellowship Baptist College", and the school's official Facebook page. */
+const FAQ = [
+  { label: 'What is FBC?', q: 'What is Fellowship Baptist College?', a: `
+    <p><b>Fellowship Baptist College (FBC)</b> is a private Christian school on Rizal Street, Barangay 9, Kabankalan City, Negros Occidental.</p>
+    <p>It was founded in <b>1954</b> as Fellowship Baptist Academy by Baptist lay ministers, leaders, and missionaries of the Visayan Fellowship of Fundamental Baptist Churches, and became a college in school year 1989–1990. Today it offers basic education up to college degree programs.</p>
+    <h4>Vision</h4><p>A Premier Christian Educational Institution in the Philippines by 2030.</p>
+    <h4>Mission</h4><p>To provide a Christ-centered education for character formation, academic competence, scholarship, and community service.</p>
+    <h4>Contact</h4><p>(034) 4713-399 · info@fbc.edu.ph · fbc.edu.ph</p>
+    <span class="src">Source: fbc.edu.ph and Wikipedia</span>` },
+  { label: 'How to enroll', q: 'How do I enroll?', a: `
+    <p>Prepare the requirements for your student type and bring them to the school.</p>
+    <h4>New college students</h4><ul><li>Form 138 (report card) + 1 photocopy</li><li>Certificate of good moral character + 1 photocopy</li><li>2 photocopies of PSA birth certificate</li><li>2 photocopies of marriage certificate (if female and married)</li><li>2 pcs 1x1 and 2 pcs 2x2 ID pictures</li><li>2 long brown envelopes</li></ul>
+    <h4>Transferees</h4><ul><li>Transcript of Records (honorable dismissal) + 1 photocopy</li><li>2 photocopies of PSA birth certificate</li><li>2 photocopies of marriage certificate (if female and married)</li><li>2 pcs 2x2 ID pictures and 2 long brown envelopes</li><li>NSTP certificate with serial number</li></ul>
+    <h4>Basic education</h4><ul><li>Form 138, 2 photocopies of PSA birth certificate, certificate of good moral character</li><li>ESC certificate (private school completers only)</li><li>1 pc 2x2 ID picture, 1 long brown envelope, 1 long white folder</li></ul>
+    <p>Forms can be downloaded at fbc.edu.ph (Downloads). Questions? Message FBC Admissions on Facebook Messenger or call (034) 4713-399.</p>
+    <span class="src">Source: fbc.edu.ph/Admissions</span>` },
+  { label: 'What are the offers?', q: 'What programs and scholarships does FBC offer?', a: `
+    <h4>College of Engineering and Computer Studies</h4><p>BS Civil Engineering, BS Electronics Engineering, BS Computer Engineering, BS Information Technology, Bachelor of Library and Information Science</p>
+    <h4>College of Teachers Education, Arts and Sciences</h4><p>Bachelor of Elementary Education, Bachelor of Secondary Education, BS Psychology</p>
+    <h4>College of Hospitality, Business and Accountancy</h4><p>BS Accountancy, BS Business Administration, BS Hospitality Management</p>
+    <h4>Allied Health</h4><p>BS Pharmacy, BS Medical Technology, BS Radiologic Technology, BS Midwifery</p>
+    <h4>College of Criminal Justice Education</h4><p>BS Criminology</p>
+    <h4>Basic Education</h4><p>Elementary, Junior High School, Senior High School</p>
+    <h4>Scholarships and discounts</h4><ul><li>Academic Scholarship for top-ranking entrants (up to 100% tuition)</li><li>Academic Excellence Scholarship (25–75% for averages of 93 and up)</li><li>Family Privilege Scholarship for families with 3 or more enrolled</li><li>Work Study Program (₱20 per hour)</li><li>Loyalty Discount: 25% for FBC Senior High graduates entering college</li><li>₱500 Discount Coupon for incoming Grade 11 and first-year college</li></ul>
+    <p>A student may receive only one institutional scholarship.</p>
+    <span class="src">Source: fbc.edu.ph/Academics and Scholarship</span>` },
+  { label: 'Enrollment process', q: 'What is the enrollment process?', a: `
+    <ol><li><b>Check the schedule.</b> Enrollment dates are posted under News and Advisories at fbc.edu.ph and on the FBC Facebook page. For 2026, enrollment started on July 7, 2026.</li>
+    <li><b>Prepare your requirements</b> for your student type (tap “How do I enroll?” to see the list).</li>
+    <li><b>Submit them to the Admissions or Registrar’s Office</b> and fill out the enrollment forms.</li>
+    <li><b>Get your assessment</b> of tuition and other fees.</li>
+    <li><b>Pay the downpayment</b> at the Cashier’s Office or at this PayPoint kiosk, and keep your receipt.</li>
+    <li><b>Log in to the student portal</b> (fbc.mytechnopal.com) once you are officially enrolled.</li></ol>
+    <span class="note">This is a general guide. Steps can differ per program, so please confirm with the Registrar’s Office.</span>
+    <span class="src">Source: fbc.edu.ph</span>` },
+  { label: 'Is this payment safe?', q: 'Is paying here safe?', a: `
+    <p>Yes. PayPoint is designed to protect your account and your money:</p>
+    <ul><li><b>Your PIN protects your account.</b> Only you can open it with your ID and 4-digit PIN.</li>
+    <li><b>Every payment is recorded instantly</b> and shows up at the Cashier’s Office right away, with a printed receipt for you.</li>
+    <li><b>Cashless payments go through GCash or Maya.</b> You pay in your own app, so the kiosk never sees your e-wallet PIN or password.</li>
+    <li><b>Promissory notes are approved only by the VP for Finance.</b></li>
+    <li><b>Your records are kept private</b> under the Data Privacy Act of 2012 (RA 10173).</li></ul>
+    <h4>Stay safe</h4><ul><li>Cover the keypad when entering your PIN.</li><li>Always tap <b>Log out</b> when you are done.</li><li>Keep your receipt and report any problem to the Cashier’s Office.</li></ul>
+    <span class="note">Demo note: payments in this prototype are simulated.</span>` },
+];
+const assistGreeting = `<p>Hi! I’m the <b>FBC Assistant</b>. Tap a question below and I’ll answer it right away.</p>`;
+function kOpenAssistant(){ const k = ui.k; if (k.screen !== 'assistant') k.assistBack = k.screen; k.screen = 'assistant'; k.chat = k.chat || []; k.typing = false; }
+function kAsk(i){
+  const k = ui.k; if (k.typing) return; const f = FAQ[i]; if (!f) return;
+  k.chat.push({ who:'user', html: esc(f.q) }); k.typing = true; render(false);
+  setTimeout(() => { k.typing = false; k.chat.push({ who:'bot', html: f.a }); if (ui.role === 'student' && k.screen === 'assistant') render(false); }, 900);
+}
+function assistantView(){
+  const k = ui.k;
+  const log = [{ who:'bot', html: assistGreeting }, ...(k.chat || [])].map(m => m.who === 'bot'
+    ? `<div class="msg bot">${m.html}</div>` : `<div class="msg user">${m.html}</div>`).join('');
+  return `<div class="assist">
+    <div class="row between"><div><span class="bot-name"><span class="assist-btn"><span class="dot">?</span></span>FBC Assistant</span><h1 class="k-title" style="margin-top:4px">How can I help?</h1></div>
+      <button class="btn sm" data-act="k_assist_back">← Back</button></div>
+    <div class="chat" id="chat-log" aria-live="polite">${log}${k.typing ? `<div class="msg bot typing" aria-label="Assistant is typing"><i></i><i></i><i></i></div>` : ''}</div>
+    <div class="quick" role="group" aria-label="Questions">${FAQ.map((f, i) => `<button data-act="k_ask" data-i="${i}" ${k.typing ? 'disabled' : ''}>${esc(f.label)}</button>`).join('')}</div>
+  </div>`;
 }
 
 /* ---------- STUDENT KIOSK ---------- */
@@ -455,13 +546,16 @@ function kioskView(){
   const head = `<div class="k-head"><span class="k-brand"><span class="logo" aria-label="School logo">FBC</span><b>${esc(c.school)}</b></span>${s ? `<div class="row"><span class="small muted">${esc(s.no)}</span><button class="btn sm" data-act="k_out">Log out</button></div>` : `<span class="small muted">Payment Kiosk</span>`}</div>`;
   const back = (to='home') => `<button class="btn sm" data-act="k_go" data-s="${to}">← Back</button>`;
   let b = '';
-  if (k.screen === 'idle' && k.login !== 'number'){
+  if (k.screen === 'assistant'){
+    b = assistantView();
+  } else if (k.screen === 'idle' && k.login !== 'number'){
     b = `<div class="k-narrow" style="text-align:center">
         <div class="stack" style="gap:6px"><h1 class="k-title">Welcome</h1><p class="muted">Tap your school ID card on the reader below the screen.</p></div>
         <div class="tapzone" aria-hidden="true"><div class="card-icon"><span></span></div><p class="small muted">Waiting for your ID card…</p></div>
         ${k.err ? `<div class="note bad">${esc(k.err)}</div>` : ''}
         <div class="demo" style="text-align:left"><span class="eyebrow">Demo · simulate a card tap</span><div class="row"><select id="k-rfid" style="flex:1">${students().map(x => `<option value="${x.no}">${esc(x.name)}'s ID card</option>`).join('')}</select><button class="btn primary" data-act="k_tap">Tap card</button></div></div>
         <button class="btn lg" data-act="k_login_mode" data-m="number">Log in using ID number</button>
+        <button class="btn ghost assist-btn" data-act="k_assist"><span class="dot">?</span>Have a question? Ask the FBC Assistant</button>
         <p class="small muted">PIN for every sample student: 1234</p></div>`;
   } else if (k.screen === 'idle'){
     b = `<form class="k-narrow" data-form="k_login" style="text-align:center">
@@ -491,7 +585,7 @@ function kioskView(){
       <div class="duecard"><div><span class="eyebrow">Amount to pay now · ${esc(c.period)} exams</span><div class="k-big" style="margin-top:6px">${peso(L.due)}</div></div>${dueLines(L)}
         <div class="line small muted"><span>Whole-term balance</span><span class="num">${peso(L.balance)}</span></div></div>
       <div class="k-actions"><button class="btn primary lg" data-act="k_pay" ${L.balance <= 0 ? 'disabled' : ''}>Pay now</button><button class="btn lg" data-act="k_go" data-s="request">Request a promissory note</button></div>
-      <div class="k-links"><button class="btn ghost" data-act="k_go" data-s="details">View assessment & history</button>${L.eligible ? `<button class="btn ghost" data-act="k_go" data-s="permit">Print exam permit</button>` : ''}</div>`;
+      <div class="k-links"><button class="btn ghost" data-act="k_go" data-s="details">View assessment & history</button><button class="btn ghost" data-act="k_assist">Ask the FBC Assistant</button>${L.eligible ? `<button class="btn ghost" data-act="k_go" data-s="permit">Print exam permit</button>` : ''}</div>`;
   } else if (k.screen === 'pay'){
     const L = ledger(s), lim = payLimits(L);
     b = `<div class="row between"><h1 class="k-title">Pay now</h1>${back()}</div>
@@ -661,6 +755,9 @@ const ACT = {
   k_fill: d => { const el = document.getElementById('k-no'); if (el){ el.value = d.no; el.focus(); } ui.k.err = ''; return 'skip'; },
   k_tap: () => kLogin(val('k-rfid')),
   k_login_mode: d => { ui.k.login = d.m; ui.k.err = ''; },
+  k_assist: () => kOpenAssistant(),
+  k_assist_back: () => { ui.k.screen = ui.k.assistBack || (ui.k.no ? 'home' : 'idle'); },
+  k_ask: d => { kAsk(+d.i); return 'skip'; },
   k_key: d => { const k = ui.k; k.err = '';
     if (d.k === 'C') k.pin = ''; else if (d.k === '⌫') k.pin = k.pin.slice(0,-1); else if (k.pin.length < 4) k.pin += d.k;
     if (k.pin.length === 4){ const s = student(k.pinFor); if (s.pin === k.pin) Object.assign(k, { no:s.no, screen:'home', pin:'', msg:'' }); else { k.pin = ''; k.err = 'Wrong PIN. The demo PIN is 1234.'; } } },
